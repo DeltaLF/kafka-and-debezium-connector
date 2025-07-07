@@ -28,13 +28,14 @@ services:
       # should be set by init sql script
       # - APP_USER=C##dbzuser
       # - APP_USER_PASSWORD=dbz
-      - ORACLE_ARCHIVELOG=true
+      # - ORACLE_ARCHIVELOG=true # use shell script to enable archivelog mode
     volumes:
       # named volume managed by docker
       - oracle-data:/opt/oracle/oradata
       # bind mount for init sql scripts
-      - ./01_setup_users.sql:/container-entrypoint-initdb.d/01_setup_users.sql
-      - ./02_create_tables.sql:/container-entrypoint-initdb.d/02_create_tables.sql
+      - ./01_enable_archivelog.sh:/container-entrypoint-initdb.d/01_enable_archivelog.sh
+      - ./02_setup_users.sql:/container-entrypoint-initdb.d/02_setup_users.sql
+      - ./03_create_tables.sql:/container-entrypoint-initdb.d/03_create_tables.sql
 
   connect:
     image: debezium/connect:2.5

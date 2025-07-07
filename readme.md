@@ -18,6 +18,9 @@ SQL> STARTUP MOUNT;
 SQL> ALTER DATABASE ARCHIVELOG;
 SQL> ALTER DATABASE OPEN;
 SQL> exit;
+
+# verify by checking it returns ARCHIVELOG
+SELECT LOG_MODE FROM V$DATABASE;
 ```
 
 For dbz to work, it requires a cdb user
