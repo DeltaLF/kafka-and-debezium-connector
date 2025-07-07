@@ -34,6 +34,7 @@ services:
       - oracle-data:/opt/oracle/oradata
       # bind mount for init sql scripts
       - ./01_setup_users.sql:/container-entrypoint-initdb.d/01_setup_users.sql
+      - ./02_create_tables.sql:/container-entrypoint-initdb.d/02_create_tables.sql
 
   connect:
     image: debezium/connect:2.5
