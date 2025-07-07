@@ -1,0 +1,2 @@
+# driver for debezium connector to connect to Oracle
+ojdbc11.jar

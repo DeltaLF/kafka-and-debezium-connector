@@ -1,0 +1,52 @@
+version: "3.8"
+
+services:
+  zookeeper:
+    image: debezium/zookeeper:2.5
+    ports:
+      - 2181:2181
+
+  kafka:
+    image: debezium/kafka:2.5
+    ports:
+      - 9092:9092
+    depends_on:
+      - zookeeper
+    environment:
+      ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9093,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+  oracle:
+    image: gvenzl/oracle-free:latest
+    ports:
+      - 1521:1521
+    environment:
+      - ORACLE_PASSWORD=your_strong_password
+      - APP_USER=dbzuser
+      - APP_USER_PASSWORD=dbz
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+
+  connect:
+    image: debezium/connect:2.5
+    ports:
+      - 8083:8083
+    depends_on:
+      - kafka
+      - oracle
+    environment:
+      - BOOTSTRAP_SERVERS=kafka:9093 # Internal Kafka listener
+      - GROUP_ID=1
+      - CONFIG_STORAGE_TOPIC=my_connect_configs
+      - OFFSET_STORAGE_TOPIC=my_connect_offsets
+      - STATUS_STORAGE_TOPIC=my_connect_statuses
+    volumes:
+      # Mounts the local ojdbc JAR into the correct path in the container
+      # Make sure you have ojdbc8.jar or ojdbc11.jar in the same folder
+      - ./ojdbc11.jar:/kafka/connect/debezium-connector-oracle/ojdbc11.jar
+
+volumes:
+  oracle-data:
