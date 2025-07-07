@@ -2,96 +2,11 @@
 
 Demonstrate how to setup kafka connector and database to start cdc.
 
-1. create data for dbzuser
-2. grant permission for dbzuer (for dbz to work, view log premission is requried)
-3. enable archivelog mode
+1. enable archivelog mode
+2. create C##DBZUSER (we need a cdb user)
+3. make data with the new created user C#DBZUSER in the FREEPDB1
 
 # oracle prepare data
-
-make data in FREEPDB1 database
-
-```sql
--- ========= CREATE TABLES =========
--- Creates the main tables for customers, products, and their orders.
-
-CREATE TABLE customers (
-id NUMBER(10) NOT NULL PRIMARY KEY,
-first_name VARCHAR2(255) NOT NULL,
-last_name VARCHAR2(255) NOT NULL,
-email VARCHAR2(255) NOT NULL UNIQUE
-);
-
-CREATE TABLE products (
-id NUMBER(10) NOT NULL PRIMARY KEY,
-name VARCHAR2(255) NOT NULL,
-description VARCHAR2(1000),
-price NUMBER(10, 2) NOT NULL
-);
-
-CREATE TABLE orders (
-id NUMBER(10) NOT NULL PRIMARY KEY,
-order_date DATE NOT NULL,
-customer_id NUMBER(10) NOT NULL,
-CONSTRAINT fk_orders_customers FOREIGN KEY (customer_id) REFERENCES customers(id)
-);
-
--- ========= ENABLE SUPPLEMENTAL LOGGING (CRUCIAL FOR DEBEZIUM) =========
--- This tells Oracle to write the necessary information to the transaction logs
--- for Debezium's LogMiner to capture the changes.
-
-ALTER TABLE customers ADD SUPPLEMENTAL LOG DATA (ALL) COLUMNS;
-ALTER TABLE products ADD SUPPLEMENTAL LOG DATA (ALL) COLUMNS;
-ALTER TABLE orders ADD SUPPLEMENTAL LOG DATA (ALL) COLUMNS;
-
--- ========= INSERT SAMPLE DATA =========
--- Inserts some rows so you have initial data to work with.
-
--- Create customers
-INSERT INTO customers VALUES (101, 'John', 'Doe', 'johndoe@example.com');
-INSERT INTO customers VALUES (102, 'Jane', 'Smith', 'janesmith@example.com');
-
--- Create products
-INSERT INTO products VALUES (201, 'Laptop', 'A powerful work laptop', 1200.50);
-INSERT INTO products VALUES (202, 'Mouse', 'An ergonomic wireless mouse', 45.99);
-INSERT INTO products VALUES (203, 'Keyboard', 'A mechanical keyboard with RGB', 110.00);
-
--- Create an order for John Doe
-INSERT INTO orders VALUES (1001, SYSDATE, 101);
-
-COMMIT;
-```
-
-grant permission for dbzuser
-(log in sys with role sysdba)
-
-```sql
--- Grant general session and view creation permissions
-GRANT CREATE SESSION TO dbzuser;
-GRANT CREATE TABLE TO dbzuser;
-GRANT CREATE SEQUENCE to dbzuser;
-GRANT CREATE VIEW to dbzuser;
-ALTER USER dbzuser QUOTA UNLIMITED ON users;
-
--- Grant required SELECT privileges on system views
-GRANT SELECT ON V_$DATABASE to dbzuser;
-GRANT SELECT ON V_$ARCHIVED_LOG to dbzuser;
-GRANT SELECT ON V_$LOGMNR_CONTENTS to dbzuser;
-GRANT SELECT ON V_$LOG to dbzuser;
-GRANT SELECT ON V_$LOGFILE to dbzuser;
-GRANT SELECT ON V_$INSTANCE to dbzuser;
-
--- Grant LogMiner-specific role
-GRANT SELECT_CATALOG_ROLE TO dbzuser;
-GRANT EXECUTE_CATALOG_ROLE TO dbzuser;
-GRANT LOGMINING TO dbzuser;
-
--- Grant access to specific tables for reading redo logs
-GRANT SELECT on v_$transportable_platform to dbzuser;
-
--- Grant access to the specific tables you want to capture
--- (This is optional if you want the user to own the tables, but good practice otherwise)
-GRANT SELECT ON  DBZUSER.customers to dbzuser;
-```
 
 enable archive log mode
 
@@ -140,16 +55,9 @@ ALTER USER C##dbzuser QUOTA UNLIMITED ON users;
 
 with C##DBZUSER created
 now login C##DBZUSER to FREEPDB1
+and make data
 
 ```sql
--- Drop tables first to ensure the script can be run multiple times
-BEGIN EXECUTE IMMEDIATE 'DROP TABLE orders'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
-/
-BEGIN EXECUTE IMMEDIATE 'DROP TABLE products'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
-/
-BEGIN EXECUTE IMMEDIATE 'DROP TABLE customers'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -942 THEN RAISE; END IF; END;
-/
-
 -- ========= CREATE TABLES =========
 CREATE TABLE customers (
   id NUMBER(10) NOT NULL PRIMARY KEY,
@@ -188,12 +96,27 @@ INSERT INTO orders VALUES (1001, SYSDATE, 101);
 COMMIT;
 ```
 
+Not only table level log needs to be enable (for snapshot phase to work)
+database level log also needs to be enable (for streaming phase to wrok)
+
+```sql
+-- log in sys to cdb
+ALTER DATABASE ADD SUPPLEMENTAL LOG DATA (PRIMARY KEY) COLUMNS;
+
+-- shutdown and stratup oracle
+SHUTDOWN IMMEDIATE;
+STARTUP;
+-- verify it to ruturn yes
+SELECT SUPPLEMENTAL_LOG_DATA_PK FROM V$DATABASE;
+```
+
 # connector
 
 ```js
 curl localhost:8083/connectors
 curl -i localhost:8083/connectors/{connectorName}/status
 curl -i -X DELETE localhost:8083/connectors/oracle-customers-connector
+curl -i -X POST localhost:8083/connectors/oracle-customers-connector/tasks/0/restart
 
 {
 "name": "oracle-customers-connector",
