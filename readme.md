@@ -117,7 +117,11 @@ curl localhost:8083/connectors
 curl -i localhost:8083/connectors/{connectorName}/status
 curl -i -X DELETE localhost:8083/connectors/oracle-customers-connector
 curl -i -X POST localhost:8083/connectors/oracle-customers-connector/tasks/0/restart
+curl -i -X PUT -H "Content-Type: application/json" \
+localhost:8083/connectors/oracle-customers-connector/config \
+-d @connector-config-only.json
 
+// create
 {
 "name": "oracle-customers-connector",
 "config": {
@@ -126,11 +130,11 @@ curl -i -X POST localhost:8083/connectors/oracle-customers-connector/tasks/0/res
 "topic.prefix":"oracleserver1",
 "database.hostname": "oracle",
 "database.port": "1521",
-"database.user": "dbzuser",
+"database.user": "C##dbzuser",
 "database.password": "dbz",
 "database.dbname": "FREEPDB1",
 "database.pdb.name": "FREEPDB1",
-"table.include.list": "DBZUSER.CUSTOMERS",
+"table.include.list": "C##DBZUSER.CUSTOMERS",
 // "database.history.kafka.bootstrap.servers": "kafka:9092",
 // "database.history.kafka.topic": "dbhistory.oracleserver1",
 "schema.history.internal.kafka.bootstrap.servers": "kafka:9093",
@@ -139,10 +143,45 @@ curl -i -X POST localhost:8083/connectors/oracle-customers-connector/tasks/0/res
 "snapshot.mode": "initial"
 }
 }
+
+// update
+{
+"connector.class": "io.debezium.connector.oracle.OracleConnector",
+// "database.server.name": "oracleserver1",
+"topic.prefix":"oracleserver1Patched",
+"database.hostname": "oracle",
+"database.port": "1521",
+"database.user": "C##dbzuser",
+"database.password": "dbz",
+"database.dbname": "FREEPDB1",
+"database.pdb.name": "FREEPDB1",
+"table.include.list": "C##DBZUSER.CUSTOMERS",
+// "database.history.kafka.bootstrap.servers": "kafka:9092",
+// "database.history.kafka.topic": "dbhistory.oracleserver1",
+"schema.history.internal.kafka.bootstrap.servers": "kafka:9093",
+"schema.history.internal.kafka.topic": "dbhistory.oracleserver1",
+"log.mining.strategy": "online_catalog",
+"snapshot.mode": "initial"
+}
+
 ```
 
 # kafka
 
 ```sh
+# topics
+## create
 docker exec -it dbz_oracle-kafka-1 /kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+## delete
+docker exec -it dbz_oracle-kafka-1 /kafka/bin/kafka-topics.sh \
+--bootstrap-server localhost:9092 \
+--delete \
+--topic oracleserver1
+
+# consumer
+docker exec -it dbz_oracle-kafka-1 /kafka/bin/kafka-console-consumer.sh \
+--bootstrap-server localhost:9092 \
+--topic oracleserver1.C##DBZUSER.CUSTOMERS \
+--from-beginning \
+--property print.key=true
 ```
